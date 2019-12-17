@@ -41,8 +41,8 @@ public class GameHandler : MonoBehaviour
                 typeof(LocalToWorld),
                 typeof(Translation),
                 typeof(Rotation),
-                //typeof(NonUniformScale),
-                typeof(Scale),
+                typeof(NonUniformScale),
+                //typeof(Scale),
                 typeof(MotionProperties),
                 typeof(Planetoid)
             );
@@ -55,14 +55,15 @@ public class GameHandler : MonoBehaviour
                 mesh = mesh,
                 material = material
             });
-            //entityManager.SetComponentData(entity, new NonUniformScale
-            //{
-            //    Value = new float3(UnityEngine.Random.Range(1f, 5f), UnityEngine.Random.Range(1f, 5f), 0)
-            //});
-            entityManager.SetComponentData(entity, new Scale() { Value = 1f });
+            entityManager.SetComponentData(entity, new NonUniformScale
+            {
+                //Value = new float3(UnityEngine.Random.Range(1f, 5f), UnityEngine.Random.Range(1f, 3f), 0)
+                Value = new float3(8, 4, 0)
+            }); ;
+            //entityManager.SetComponentData(entity, new Scale() { Value = 1f });
             entityManager.SetComponentData(entity, new Translation
             {
-                Value = GetSpawnCoordsReversed(50, 5, entity.Index)//second num is scale TODO make a variable of it
+                Value = GetSpawnCoordsReversed(50, 10, entity.Index)//second num is scale TODO make a variable of it
                 //Value = new float3(UnityEngine.Random.Range(-8f, 8f), UnityEngine.Random.Range(-5f, 5f), 0)
             });
             entityManager.SetComponentData(entity, new MotionProperties
@@ -75,6 +76,8 @@ public class GameHandler : MonoBehaviour
         }
         entityArray.Dispose();
     }
+
+    #region CreateMesh
 
     private Mesh CreateMesh(float halfUnit)//for custom scaled mesh pass width and height as params, then divide by 2 and pass as units in vertices
     {
@@ -107,6 +110,8 @@ public class GameHandler : MonoBehaviour
 
         return mesh;
     }
+
+    #endregion
 
     private void GetSpawnCoords(int gridEdgeCells, int scale)
     {
@@ -178,6 +183,31 @@ public class GameHandler : MonoBehaviour
         return nextPosition;
     }
 
+    
+    public static float3 ToEulerAngles(Quaternion q)
+    {
+        float3 angles;
+
+        // roll (x-axis rotation)
+        float sinr_cosp = +2f * (q.w * q.x + q.y * q.z);
+        float cosr_cosp = +1f - 2f * (q.x * q.x + q.y * q.y);
+        angles.x = math.atan2(sinr_cosp, cosr_cosp);
+
+        // pitch (y-axis rotation)
+        float sinp = +2f * (q.w * q.y - q.z * q.x);
+        //if (fabs(sinp) >= 1)
+        //    angles.pitch = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+        //else
+        angles.y = math.asin(sinp);
+
+        // yaw (z-axis rotation)
+        float siny_cosp = +2f * (q.w * q.z + q.x * q.y);
+        float cosy_cosp = +1f - 2f * (q.y * q.y + q.z * q.z);
+        angles.z = math.atan2(siny_cosp, cosy_cosp);
+
+        return angles;
+    }
+
 
 }
 
@@ -191,6 +221,7 @@ public struct MotionProperties : IComponentData
     public float moveSpeed;
     public float3 direction;
     public float rotationSpeed;
+    public int rotationDirection;
 }
 
 //[DisableAutoCreation]

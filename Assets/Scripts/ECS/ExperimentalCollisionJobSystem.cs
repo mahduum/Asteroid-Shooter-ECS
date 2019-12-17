@@ -19,7 +19,7 @@ public struct CrashInfo
 
 [DisableAutoCreation]
 [UpdateAfter(typeof(QuadrantSystem))]
-public class NewCollisionJobSystem : JobComponentSystem
+public class ExperimentalCollisionJobSystem : JobComponentSystem
 {
    
     //[BurstCompile]

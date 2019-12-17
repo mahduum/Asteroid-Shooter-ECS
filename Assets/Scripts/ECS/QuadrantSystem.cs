@@ -16,6 +16,8 @@ public struct EntityWithProps
     public float vecSqrMag;
     public float crashTime;
     public Planetoid planetoidCrashData;
+    public quaternion rotation;
+    public float3 nonUniformScale;
 }
 //[DisableAutoCreation]
 
@@ -55,11 +57,11 @@ public class QuadrantSystem : ComponentSystem
    
     //[RequireComponentTag (typeof(RenderMesh))]
     [ExcludeComponent (typeof(Disabled))]
-    private struct SetQuadrantDataJob : IJobForEachWithEntity<Translation, Planetoid>
+    private struct SetQuadrantDataJob : IJobForEachWithEntity<Translation, Rotation, NonUniformScale, Planetoid>
     {
         public NativeMultiHashMap<int, EntityWithProps>.Concurrent quadrantMultiHashMap;
 
-        public void Execute(Entity entity, int index, ref Translation translation, ref Planetoid planetoidCrashData)
+        public void Execute(Entity entity, int index, ref Translation translation, ref Rotation rotation, ref NonUniformScale nonUniformScale, ref Planetoid planetoidCrashData)
         {
             int hashMapKey = GetPositionHashMapKey(translation.Value);
             quadrantMultiHashMap.Add(hashMapKey, new EntityWithProps
@@ -68,7 +70,9 @@ public class QuadrantSystem : ComponentSystem
                 position = translation.Value,
                 vecSqrMag = translation.Value.x * translation.Value.x + translation.Value.y * translation.Value.y,
                 crashTime = 0,
-                planetoidCrashData = planetoidCrashData
+                planetoidCrashData = planetoidCrashData,
+                rotation = rotation.Value,
+                nonUniformScale = nonUniformScale.Value
             });
         }
     }
@@ -90,7 +94,7 @@ public class QuadrantSystem : ComponentSystem
 
     protected override void OnUpdate()
     {
-        EntityQuery entityQuery = GetEntityQuery(typeof(Translation), typeof(Planetoid));
+        EntityQuery entityQuery = GetEntityQuery(typeof(Translation), typeof(Rotation), typeof(NonUniformScale), typeof(Planetoid));
 
         quadrantMultiHashMap.Clear();
 

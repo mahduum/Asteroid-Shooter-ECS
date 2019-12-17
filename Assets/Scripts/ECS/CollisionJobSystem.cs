@@ -143,7 +143,7 @@ public class CollisionJobSystem : JobComponentSystem
     [RequireComponentTag(typeof(RenderMesh))]
     [ExcludeComponent (typeof(Disabled))]
     [BurstCompile]
-    private struct CollisionDetectionInQuadrantsJob : IJobForEachWithEntity<Translation, MotionProperties, Planetoid>
+    private struct CollisionDetectionInQuadrantsJob : IJobForEachWithEntity<Translation, Rotation, NonUniformScale, MotionProperties, Planetoid>
     {
         [ReadOnly] public NativeMultiHashMap<int, EntityWithProps> quadrantMultiHashMap;
         public NativeQueue<Entity>.Concurrent destroyedPlanetoidsQueue;
@@ -151,9 +151,19 @@ public class CollisionJobSystem : JobComponentSystem
         //public NativeQueue<float>.Concurrent crashTimesQueue;
         //public EntityCommandBuffer.Concurrent entityCommandBuffer;
         public float realTimeSinceStartUp;
-        public void Execute(Entity entity, int index, ref Translation translation, [ReadOnly] ref MotionProperties motionProperties, ref Planetoid planetoidCrashInfo)
+        public void Execute(Entity entity, int index, ref Translation translation, [ReadOnly] ref Rotation rotation, [ReadOnly] ref NonUniformScale nonUniformScale, [ReadOnly] ref MotionProperties motionProperties, ref Planetoid planetoidCrashInfo)
         {
             float3 position = translation.Value;
+            float3 scale = nonUniformScale.Value;
+            float qRotationZ = rotation.Value.value.z;
+            float axisA = nonUniformScale.Value.x/2f;
+            float axisB = nonUniformScale.Value.y/2f;
+            //TODO read the angle from quaternion
+            //float angleZ = GameHandler.ToEulerAngles(q).z;
+            //angleZ = angleZ % (2 * math.PI);
+            // read z angle of entity rotation by multiplying right vector by quaternion:
+            float3 rotationRightVectorN = math.normalize(qRotationZ * new float3(0, 0, 1));
+
             int hashMapKey = QuadrantSystem.GetPositionHashMapKey(position);
                
             if (quadrantMultiHashMap.TryGetFirstValue(hashMapKey, out EntityWithProps inspectedEntityWithProps, out NativeMultiHashMapIterator<int> it))//TODO check the neighbouring quadrants
@@ -161,14 +171,56 @@ public class CollisionJobSystem : JobComponentSystem
                 do
                 {
                     float distance = math.distancesq(position, inspectedEntityWithProps.position);
-                    /*TODO for ellipses:
-                     * calculate angle vector to the target
-                     * add angle to rotation angle of active ellipse collider
-                     * calculate radius of active ellipse 
-                     * do the same with passive ellipse collider
-                     * sum the radiae to get the distance                    
-                     */                   
-                    if (distance < 0.3f && inspectedEntityWithProps.entity != entity && !(inspectedEntityWithProps.planetoidCrashData.crashTime > 0))// TODO and if entity that is being collided with has crashTime zero
+                    //TODO for ellipses:
+                    // calculate angle vector to the target
+                    //float3 vectorToTarget = inspectedEntityWithProps.position - position;
+                    //float distanceToTargetSq = vectorToTarget.x * vectorToTarget.x + vectorToTarget.y + vectorToTarget.y; 
+                    float3 vectorToTargetN = math.normalize(inspectedEntityWithProps.position - position);              
+                    // add angle to rotation angle of active ellipse collider
+                    float radiaeAngle = math.acos(math.dot(rotationRightVectorN, vectorToTargetN));
+                    float sinRadiaeAngle = math.sin(radiaeAngle);
+                    float cosRadiaeAngle = math.cos(radiaeAngle);
+                    // calculate radius in line of target of active ellipse collider
+                    float radiusToTarget = axisA * axisB / math.sqrt(axisA * axisA * sinRadiaeAngle * sinRadiaeAngle + axisB * axisB * cosRadiaeAngle * cosRadiaeAngle);
+                    // do the same with passive ellipse collider
+                    float qRotationZofInspectedEntity = inspectedEntityWithProps.rotation.value.z;
+
+                    float3 rotationRightVectorNofInspectedEntity = math.normalize(qRotationZofInspectedEntity * new float3(0, 0, 1));
+
+                    float axisAofInspectedEntity = inspectedEntityWithProps.nonUniformScale.x/2f;
+
+                    float axisBofInspectedEntity = inspectedEntityWithProps.nonUniformScale.y/2f;
+
+                    float radiaeAngleOfInspectedEntity = math.acos(math.dot(rotationRightVectorNofInspectedEntity, -vectorToTargetN));
+
+                    float sinRadiaeAngleOfInspectedEntity = math.sin(radiaeAngleOfInspectedEntity);
+                    float cosRadiaeAngleOfInspectedEntity = math.cos(radiaeAngleOfInspectedEntity);
+
+                    float radiusFromTarget = axisAofInspectedEntity * axisBofInspectedEntity / math.sqrt(axisAofInspectedEntity * axisAofInspectedEntity * sinRadiaeAngleOfInspectedEntity * sinRadiaeAngleOfInspectedEntity
+                                                                                                                   + axisBofInspectedEntity * axisBofInspectedEntity * cosRadiaeAngleOfInspectedEntity * cosRadiaeAngleOfInspectedEntity);
+                    // sum the radiae to get the distance
+                    float radiaeSum = radiusToTarget + radiusFromTarget;
+                    float radiaeSumSq = radiaeSum * radiaeSum;
+                    // set the longer axis of ellipse to be the zero degrees rotation vector
+                    // or make it so that the x axis of ellipse is always longer
+                     
+                    // calculate the rotation of the asteroid % 360
+                    // calculate the rotation of the asteroid upon which the check is being made
+                     
+                    // calculate the vector between two of the asteroids (maybe make it the normal vector)
+                     
+                    // calculate the angle between asteroid rotation and the connecting vector
+                    // and calculate for the radius at that point
+                     
+                    // same for the other asteroid
+                    
+                    // sum up the radii to obtain the collision distance
+                     
+                    // check for the collision distance (below)
+                     
+                    
+
+                    if (distance < radiaeSumSq && inspectedEntityWithProps.entity != entity && !(inspectedEntityWithProps.planetoidCrashData.crashTime > 0))// TODO and if entity that is being collided with has crashTime zero
                     {
                         planetoidCrashInfo.crashTime = realTimeSinceStartUp;
                         inspectedEntityWithProps.planetoidCrashData.crashTime = realTimeSinceStartUp;
@@ -250,7 +302,7 @@ public class CollisionJobSystem : JobComponentSystem
         public void Execute (Entity entity, int index, [ReadOnly] ref Disabled isDeactivated, ref Translation translation, ref Planetoid planetoidCrashInfo)
         {
             int gridEdgeCells = 300;
-            float scale = 5;
+            float scale = 10;
             float timePassedSinceCrash = realTimeSinceStartUp - planetoidCrashInfo.crashTime;
            
             if (timePassedSinceCrash > 3)
